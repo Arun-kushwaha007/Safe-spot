@@ -48,10 +48,17 @@ constants/         # Design tokens and colors
 lib/               # Firebase config and types
 ```
 
-## Android First
+## Running on Device (Expo Go)
 
-This project is optimized for Android-first development. To test:
+No Android Studio or complex setup required!
 
-1. Install [Android Studio](https://developer.android.com/studio)
-2. Create an Android Virtual Device (AVD)
-3. Run `npm run android`
+1.  **Install the App:** Download **Expo Go** from the Google Play Store (Android) or App Store (iOS).
+2.  **Start the Server:**
+    ```bash
+    npm start
+    ```
+3.  **Scan & Run:**
+    -   **Android:** Open Expo Go and scan the QR code from the terminal.
+    -   **iOS:** Open the Camera app and scan the QR code.
+
+> **Note:** Ensure your phone and computer are on the **same Wi-Fi network**.
