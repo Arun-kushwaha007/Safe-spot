@@ -120,6 +120,68 @@ export default function MapScreen() {
     }
   };
 
+  // Calculate nearest toilet
+  const [nearestToilet, setNearestToilet] = useState<{ toilet: Toilet; distance: number } | null>(null);
+
+  useEffect(() => {
+    if (!location || toilets.length === 0) return;
+
+    let minDist = Infinity;
+    let nearest = null;
+
+    toilets.forEach(t => {
+      // Simple Haversine approximation
+      const R = 6371e3; // metres
+      const φ1 = location.coords.latitude * Math.PI/180;
+      const φ2 = t.coordinates.latitude * Math.PI/180;
+      const Δφ = (t.coordinates.latitude - location.coords.latitude) * Math.PI/180;
+      const Δλ = (t.coordinates.longitude - location.coords.longitude) * Math.PI/180;
+
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const d = R * c;
+
+      if (d < minDist) {
+        minDist = d;
+        nearest = t;
+      }
+    });
+
+    if (nearest) {
+      setNearestToilet({ toilet: nearest, distance: Math.round(minDist) });
+    }
+  }, [location, toilets]);
+
+  const handleLongPress = (e: any) => {
+    const { coordinate } = e.nativeEvent;
+    
+    // Create a temporary toilet
+    const newToilet: Toilet = {
+      id: `temp-${Date.now()}`,
+      coordinates: coordinate,
+      geohash: 'temp',
+      status: 'open',
+      lastConfirmed: new Date(),
+      isAccessible: true,
+      reportCount: 0,
+    };
+
+    if (process.env.EXPO_OS === 'ios') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+
+    // Add to local state immediately
+    setToilets(prev => [...prev, newToilet]);
+    
+    Alert.alert(
+      'New Bathroom Added',
+      'This location has been marked locally. Thank you!',
+      [{ text: 'OK' }]
+    );
+  };
+
   // Loading state
   if (isLoading) {
     return (
@@ -128,6 +190,7 @@ export default function MapScreen() {
       </View>
     );
   }
+
 
   return (
     <View style={styles.container}>
@@ -141,6 +204,7 @@ export default function MapScreen() {
         showsMyLocationButton={false}
         showsCompass={false}
         mapPadding={{ top: 0, right: 0, bottom: 100, left: 0 }}
+        onLongPress={handleLongPress}
       >
         {toilets.map((toilet) => (
           <Marker
@@ -158,6 +222,17 @@ export default function MapScreen() {
           </Marker>
         ))}
       </MapView>
+
+      {/* Nearest Toilet Indicator */}
+      {nearestToilet && (
+        <View style={styles.nearestContainer}>
+          <Text style={styles.nearestLabel}>Nearest Bathroom</Text>
+          <View style={styles.nearestRow}>
+            <Ionicons name="walk" size={20} color={Colors.primary} />
+            <Text style={styles.nearestValue}>{nearestToilet.distance}m</Text>
+          </View>
+        </View>
+      )}
 
       {/* My Location Button */}
       <Pressable 
@@ -261,5 +336,32 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '600',
+  },
+  nearestContainer: {
+    position: 'absolute',
+    top: 60,
+    left: Spacing.md,
+    backgroundColor: Colors.surface,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+    zIndex: 10,
+  },
+  nearestLabel: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  nearestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  nearestValue: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.text,
+    fontVariant: ['tabular-nums'],
   },
 });
