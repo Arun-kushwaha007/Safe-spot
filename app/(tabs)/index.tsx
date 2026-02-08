@@ -3,7 +3,8 @@ import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
+
 import { useRouter } from 'expo-router';
 import Animated, { 
   useSharedValue, 
@@ -12,37 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Colors, Spacing, BorderRadius, TouchTarget } from '@/constants/colors';
 import type { Toilet, MapRegion } from '@/lib/types';
-
-// Mock data for development (replace with Firestore)
-const MOCK_TOILETS: Toilet[] = [
-  {
-    id: '1',
-    coordinates: { latitude: 28.6139, longitude: 77.2090 },
-    geohash: 'ttnfv',
-    status: 'open',
-    lastConfirmed: new Date(),
-    isAccessible: true,
-    reportCount: 5,
-  },
-  {
-    id: '2',
-    coordinates: { latitude: 28.6129, longitude: 77.2295 },
-    geohash: 'ttnfv',
-    status: 'closed',
-    lastConfirmed: new Date(Date.now() - 3600000),
-    isAccessible: false,
-    reportCount: 2,
-  },
-  {
-    id: '3',
-    coordinates: { latitude: 28.6200, longitude: 77.2100 },
-    geohash: 'ttnfv',
-    status: 'unknown',
-    lastConfirmed: new Date(Date.now() - 86400000),
-    isAccessible: true,
-    reportCount: 0,
-  },
-];
+import { fetchToilets } from '@/lib/overpass';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -53,7 +24,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export default function MapScreen() {
   const router = useRouter();
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [toilets, setToilets] = useState<Toilet[]>(MOCK_TOILETS);
+  const [toilets, setToilets] = useState<Toilet[]>([]);
   const [region, setRegion] = useState<MapRegion>({
     latitude: 28.6139,
     longitude: 77.2090,
@@ -97,12 +68,36 @@ export default function MapScreen() {
     })();
   }, []);
 
+  // Fetch real data when region changes (debounced)
+  useEffect(() => {
+    if (!region) return;
+
+    const loadToilets = async () => {
+      // Don't fetch if zoomed out too far to save data
+      if (region.latitudeDelta > 0.1) return;
+
+      const data = await fetchToilets(region);
+      setToilets(prev => {
+        // Simple deduplication based on ID
+        const newIds = new Set(data.map((t: any) => t.id));
+        const filteredPrev = prev.filter(t => !newIds.has(t.id));
+        return [...filteredPrev, ...data];
+      });
+    };
+
+    const timeoutId = setTimeout(loadToilets, 1000); // 1s debounce
+    return () => clearTimeout(timeoutId);
+  }, [region.latitude, region.longitude, region.latitudeDelta]);
+
   // Handle pin press with haptics
   const handlePinPress = useCallback((toilet: Toilet) => {
     if (process.env.EXPO_OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    router.push(`/toilet/${toilet.id}`);
+    router.push({
+      pathname: '/toilet/[id]',
+      params: { id: toilet.id, data: JSON.stringify(toilet) } // Pass data to avoid re-fetch logic for now
+    });
   }, [router]);
 
   // Handle FAB press
@@ -141,6 +136,7 @@ export default function MapScreen() {
         style={styles.map}
         provider={PROVIDER_GOOGLE}
         region={region}
+        onRegionChangeComplete={setRegion}
         showsUserLocation
         showsMyLocationButton={false}
         showsCompass={false}
@@ -154,16 +150,10 @@ export default function MapScreen() {
             tracksViewChanges={false}
           >
             <View style={[styles.pin, { backgroundColor: getPinColor(toilet.status) }]}>
-              <Image
-                source={{ uri: toilet.status === 'open' 
-                  ? 'sf:toilet.fill' 
-                  : toilet.status === 'closed' 
-                    ? 'sf:xmark' 
-                    : 'sf:questionmark' 
-                }}
-                style={styles.pinIcon}
-                tintColor="#FFFFFF"
-              />
+              {/* Using vector icons as fallback for Android if images fail context */}
+              <Text style={{ fontSize: 12 }}>
+                 {toilet.status === 'open' ? '🚽' : toilet.status === 'closed' ? '❌' : '?'}
+              </Text>
             </View>
           </Marker>
         ))}
@@ -174,20 +164,17 @@ export default function MapScreen() {
         style={styles.locationButton}
         onPress={async () => {
           if (location) {
-            setRegion({
+            const newRegion = {
               latitude: location.coords.latitude,
               longitude: location.coords.longitude,
               latitudeDelta: 0.02,
               longitudeDelta: 0.02,
-            });
+            };
+            setRegion(newRegion);
           }
         }}
       >
-        <Image
-          source={{ uri: 'sf:location.fill' }}
-          style={styles.locationIcon}
-          tintColor={Colors.primary}
-        />
+        <Ionicons name="locate" size={24} color={Colors.primary} />
       </Pressable>
 
       {/* Floating Action Button */}
@@ -195,11 +182,7 @@ export default function MapScreen() {
         style={[styles.fab, fabAnimatedStyle]}
         onPress={handleReportPress}
       >
-        <Image
-          source={{ uri: 'sf:plus' }}
-          style={styles.fabIcon}
-          tintColor="#FFFFFF"
-        />
+        <Ionicons name="add" size={24} color="#FFFFFF" />
         <Text style={styles.fabText}>Report</Text>
       </AnimatedPressable>
     </View>
@@ -224,17 +207,18 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   pin: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 30, // Smaller pin
+    height: 30,
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
-    borderCurve: 'continuous',
+    boxShadow: '0 2px 5px rgba(0, 0, 0, 0.25)',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   pinIcon: {
-    width: 20,
-    height: 20,
+    width: 16,
+    height: 16,
   },
   locationButton: {
     position: 'absolute',
@@ -247,6 +231,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+    zIndex: 10,
   },
   locationIcon: {
     width: 24,
@@ -266,6 +251,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     boxShadow: '0 4px 12px rgba(0, 122, 255, 0.4)',
     borderCurve: 'continuous',
+    zIndex: 10,
   },
   fabIcon: {
     width: 24,

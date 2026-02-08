@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -112,11 +113,7 @@ export default function ReportScreen() {
           onPress={() => handleStatusSelect('open')}
         >
           <View style={[styles.statusIcon, { backgroundColor: Colors.open }]}>
-            <Image
-              source={{ uri: 'sf:checkmark' }}
-              style={styles.statusIconImage}
-              tintColor="#FFFFFF"
-            />
+            <Ionicons name="checkmark" size={24} color="#FFFFFF" />
           </View>
           <Text style={[
             styles.statusText,
@@ -139,11 +136,7 @@ export default function ReportScreen() {
           onPress={() => handleStatusSelect('closed')}
         >
           <View style={[styles.statusIcon, { backgroundColor: Colors.closed }]}>
-            <Image
-              source={{ uri: 'sf:xmark' }}
-              style={styles.statusIconImage}
-              tintColor="#FFFFFF"
-            />
+            <Ionicons name="close" size={24} color="#FFFFFF" />
           </View>
           <Text style={[
             styles.statusText,
@@ -229,10 +222,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  statusIconImage: {
-    width: 24,
-    height: 24,
   },
   statusText: {
     fontSize: 18,

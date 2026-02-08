@@ -2,6 +2,7 @@ import { View, Text, Pressable, StyleSheet, ScrollView, Linking, Platform } from
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, TouchTarget } from '@/constants/colors';
 import type { Toilet } from '@/lib/types';
 
@@ -108,44 +109,24 @@ export default function ToiletDetailScreen() {
     >
       {/* Status Badge */}
       <View style={[styles.statusBadge, { backgroundColor: getStatusColor() }]}>
-        <Image
-          source={{ uri: toilet.status === 'open' 
-            ? 'sf:checkmark.circle.fill' 
+        <Ionicons 
+          name={toilet.status === 'open' 
+            ? 'checkmark-circle' 
             : toilet.status === 'closed' 
-              ? 'sf:xmark.circle.fill' 
-              : 'sf:questionmark.circle.fill' 
-          }}
-          style={styles.statusIcon}
-          tintColor="#FFFFFF"
+              ? 'close-circle' 
+              : 'help-circle'
+          }
+          size={24}
+          color="#FFFFFF"
         />
         <Text style={styles.statusText}>{getStatusLabel()}</Text>
       </View>
 
-      {/* Info Grid */}
-      <View style={styles.infoGrid}>
-        <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Last confirmed</Text>
-          <Text style={styles.infoValue}>{getTimeSince(toilet.lastConfirmed)}</Text>
-        </View>
-        <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Reports</Text>
-          <Text style={[styles.infoValue, { fontVariant: ['tabular-nums'] }]}>
-            {toilet.reportCount}
-          </Text>
-        </View>
-        <View style={styles.infoItem}>
-          <Text style={styles.infoLabel}>Accessible</Text>
-          <Text style={styles.infoValue}>{toilet.isAccessible ? 'Yes' : 'No'}</Text>
-        </View>
-      </View>
+// ...
 
       {/* Route Button */}
       <Pressable style={styles.routeButton} onPress={handleRoute}>
-        <Image
-          source={{ uri: 'sf:arrow.triangle.turn.up.right.diamond.fill' }}
-          style={styles.routeIcon}
-          tintColor="#FFFFFF"
-        />
+        <Ionicons name="navigate" size={24} color="#FFFFFF" />
         <Text style={styles.routeText}>Get Directions</Text>
       </Pressable>
 
@@ -222,10 +203,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.lg,
     borderCurve: 'continuous',
-  },
-  routeIcon: {
-    width: 24,
-    height: 24,
   },
   routeText: {
     fontSize: 17,
