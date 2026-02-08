@@ -15,6 +15,7 @@ import { Colors, Spacing, BorderRadius, TouchTarget } from '@/constants/colors';
 import type { Toilet, MapRegion } from '@/lib/types';
 import { fetchToilets } from '@/lib/overpass';
 import { addToiletToFirestore } from '@/lib/firestore';
+import { initDatabase, loadToiletsFromCache, saveToiletsToCache } from '@/lib/db';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -43,6 +44,13 @@ export default function MapScreen() {
   // Request location permission and get current position
   useEffect(() => {
     (async () => {
+      // Initialize DB and load cache
+      await initDatabase();
+      const cachedToilets = await loadToiletsFromCache();
+      if (cachedToilets.length > 0) {
+        setToilets(prev => [...prev, ...cachedToilets]);
+      }
+
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(
@@ -78,6 +86,12 @@ export default function MapScreen() {
       if (region.latitudeDelta > 0.1) return;
 
       const data = await fetchToilets(region);
+      
+      // Save valid data to cache
+      if (data.length > 0) {
+        saveToiletsToCache(data);
+      }
+
       setToilets(prev => {
         // Simple deduplication based on ID
         const newIds = new Set(data.map((t: any) => t.id));
@@ -111,6 +125,35 @@ export default function MapScreen() {
     }
     router.push('/report');
   }, [router, fabScale]);
+
+  // Helper to determine effective status based on decay
+  const getVisualStatus = (toilet: Toilet) => {
+    try {
+      const now = Date.now();
+      let confirmTime = 0;
+      const { lastConfirmed } = toilet;
+
+      if (!lastConfirmed) return 'unknown';
+
+      if (lastConfirmed instanceof Date) {
+        confirmTime = lastConfirmed.getTime();
+      } else if (typeof lastConfirmed === 'string') {
+        confirmTime = new Date(lastConfirmed).getTime();
+      } else if (typeof lastConfirmed === 'object' && 'seconds' in lastConfirmed) {
+        // Firestore Timestamp or similar
+        confirmTime = (lastConfirmed as any).seconds * 1000;
+      }
+
+      // 6 hours = 21,600,000 ms
+      // If older than 6 hours, treat as unknown
+      if (now - confirmTime > 21600000) {
+        return 'unknown';
+      }
+      return toilet.status;
+    } catch (e) {
+      return 'unknown';
+    }
+  };
 
   // Get pin color based on status
   const getPinColor = (status: Toilet['status']) => {
@@ -176,6 +219,7 @@ export default function MapScreen() {
 
     // 1. Optimistic Update (Immediate Feedback)
     setToilets(prev => [...prev, newToilet]);
+    saveToiletsToCache([newToilet]);
 
     if (process.env.EXPO_OS === 'ios') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -225,21 +269,24 @@ export default function MapScreen() {
         mapPadding={{ top: 0, right: 0, bottom: 100, left: 0 }}
         onLongPress={handleLongPress}
       >
-        {toilets.map((toilet) => (
-          <Marker
-            key={toilet.id}
-            coordinate={toilet.coordinates}
-            onPress={() => handlePinPress(toilet)}
-            tracksViewChanges={false}
-          >
-            <View style={[styles.pin, { backgroundColor: getPinColor(toilet.status) }]}>
-              {/* Using vector icons as fallback for Android if images fail context */}
-              <Text style={{ fontSize: 12 }}>
-                 {toilet.status === 'open' ? '🚽' : toilet.status === 'closed' ? '❌' : '?'}
-              </Text>
-            </View>
-          </Marker>
-        ))}
+        {toilets.map((toilet) => {
+          const visualStatus = getVisualStatus(toilet);
+          return (
+            <Marker
+              key={toilet.id}
+              coordinate={toilet.coordinates}
+              onPress={() => handlePinPress(toilet)}
+              tracksViewChanges={false}
+              opacity={visualStatus === 'unknown' ? 0.6 : 1} // Fade out stale pins
+            >
+              <View style={[styles.pin, { backgroundColor: getPinColor(visualStatus) }]}>
+                <Text style={{ fontSize: 12 }}>
+                   {visualStatus === 'open' ? '🚽' : visualStatus === 'closed' ? '❌' : '?'}
+                </Text>
+              </View>
+            </Marker>
+          );
+        })}
       </MapView>
 
       {/* Nearest Toilet Indicator */}
@@ -325,6 +372,19 @@ const styles = StyleSheet.create({
   locationButton: {
     position: 'absolute',
     top: 60,
+    right: Spacing.md,
+    width: TouchTarget.min,
+    height: TouchTarget.min,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+    zIndex: 10,
+  },
+  homeButton: {
+    position: 'absolute',
+    top: 110, // Below location button
     right: Spacing.md,
     width: TouchTarget.min,
     height: TouchTarget.min,

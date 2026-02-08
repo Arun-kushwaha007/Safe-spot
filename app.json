@@ -5,9 +5,12 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "bathroom-now",
+    "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
       "backgroundColor": "#007AFF"
     },
     "android": {

@@ -42,9 +42,13 @@ const MOCK_TOILETS: Record<string, Toilet> = {
  * Form sheet showing toilet status, last confirmed time, and route button
  */
 export default function ToiletDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, data } = useLocalSearchParams<{ id: string; data?: string }>();
   const router = useRouter();
-  const toilet = MOCK_TOILETS[id || '1'];
+  
+  // Parse passed data or fallback to mock (for testing)
+  const toilet: Toilet | undefined = data 
+    ? JSON.parse(data) 
+    : (id ? MOCK_TOILETS[id] : undefined);
 
   if (!toilet) {
     return (
