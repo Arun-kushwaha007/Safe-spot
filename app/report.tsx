@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { Image } from 'expo-image';
@@ -11,6 +11,7 @@ import Animated, {
   withSpring 
 } from 'react-native-reanimated';
 import { Colors, Spacing, BorderRadius, TouchTarget } from '@/constants/colors';
+import { reportToiletStatus } from '@/lib/firestore';
 
 type ReportStatus = 'open' | 'closed' | null;
 
@@ -22,6 +23,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
  */
 export default function ReportScreen() {
   const router = useRouter();
+  const { toiletId } = useLocalSearchParams<{ toiletId: string }>();
   const [selectedStatus, setSelectedStatus] = useState<ReportStatus>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -64,17 +66,19 @@ export default function ReportScreen() {
     setIsSubmitting(true);
 
     try {
-      // Get current location for proximity verification
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
 
-      // TODO: Submit to Firestore
-      console.log('Submitting report:', {
-        status: selectedStatus,
-        location: location.coords,
-        timestamp: new Date(),
-      });
+      if (toiletId) {
+        await reportToiletStatus(toiletId, selectedStatus, location.coords);
+      } else {
+        // Handle "New Report" without ID (maybe add new toilet?)
+        // For now, allow it but maybe warn or treat as new?
+        // Let's assume FAB report creates a NEW toilet at current location if no ID
+         Alert.alert('Notice', 'Reporting new locations via this button coming soon. Use Long Press on map to add.');
+         return;
+      }
 
       if (process.env.EXPO_OS === 'ios') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -86,11 +90,12 @@ export default function ReportScreen() {
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (error) {
+      console.error(error);
       Alert.alert('Error', 'Failed to submit report. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedStatus, router]);
+  }, [selectedStatus, router, toiletId]);
 
   return (
     <ScrollView 

@@ -14,6 +14,7 @@ import Animated, {
 import { Colors, Spacing, BorderRadius, TouchTarget } from '@/constants/colors';
 import type { Toilet, MapRegion } from '@/lib/types';
 import { fetchToilets } from '@/lib/overpass';
+import { addToiletToFirestore } from '@/lib/firestore';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -154,32 +155,44 @@ export default function MapScreen() {
     }
   }, [location, toilets]);
 
-  const handleLongPress = (e: any) => {
+  const handleLongPress = async (e: any) => {
     const { coordinate } = e.nativeEvent;
     
-    // Create a temporary toilet
-    const newToilet: Toilet = {
-      id: `temp-${Date.now()}`,
+    // Create a new toilet object
+    const newToiletData = {
       coordinates: coordinate,
-      geohash: 'temp',
-      status: 'open',
-      lastConfirmed: new Date(),
-      isAccessible: true,
-      reportCount: 0,
+      status: 'open' as const, // Default to open
+      isAccessible: false, // Default
     };
 
     if (process.env.EXPO_OS === 'ios') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
 
-    // Add to local state immediately
-    setToilets(prev => [...prev, newToilet]);
-    
-    Alert.alert(
-      'New Bathroom Added',
-      'This location has been marked locally. Thank you!',
-      [{ text: 'OK' }]
-    );
+    try {
+      // Add to Firestore
+      const id = await addToiletToFirestore(newToiletData);
+
+      // Add to local state immediately for feedback
+      const newToilet: Toilet = {
+        id,
+        ...newToiletData,
+        geohash: 'pending',
+        lastConfirmed: new Date(),
+        reportCount: 1,
+      };
+
+      setToilets(prev => [...prev, newToilet]);
+      
+      Alert.alert(
+        'Bathroom Added',
+        'Thank you for contributing! This location is now visible to others.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Failed to add toilet:', error);
+      Alert.alert('Error', 'Could not save location. Please try again.');
+    }
   };
 
   // Loading state

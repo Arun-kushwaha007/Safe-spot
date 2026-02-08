@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Allow reading toilets by anyone
+    match /toilets/{toiletId} {
+      allow read: if true;
+      allow create: if isValidToilet();
+      
+      // Updates usually happen via cloud functions aggregation, but let's secure writes for now
+      allow update: if false; 
+    }
+
+    match /reports/{reportId} {
+      allow read: if true;
+      allow create: if isValidReport();
+    }
+
+    function isValidToilet() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['coordinates', 'status', 'createdAt', 'createdBy']) &&
+             data.status in ['open', 'closed', 'unknown'] &&
+             data.coordinates is latlng;
+    }
+
+    function isValidReport() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['toiletId', 'statusReported', 'deviceId', 'location']) &&
+             data.statusReported in ['open', 'closed'] &&
+             data.location is latlng;
+    }
+  }
+}
