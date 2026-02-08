@@ -1,6 +1,5 @@
-import { MMKV } from 'react-native-mmkv';
+import * as SecureStore from 'expo-secure-store';
 
-const storage = new MMKV();
 const DEVICE_ID_KEY = 'device_id';
 
 const generateUUID = () => {
@@ -14,15 +13,22 @@ const generateUUID = () => {
 /**
  * Get or create a persistent Device ID
  * Used for rate limiting and report attribution without login
+ * Returns a Promise because SecureStore is async
  */
-export const getDeviceId = (): string => {
-  const existingId = storage.getString(DEVICE_ID_KEY);
-  
-  if (existingId) {
-    return existingId;
-  }
+export const getDeviceId = async (): Promise<string> => {
+  try {
+    const existingId = await SecureStore.getItemAsync(DEVICE_ID_KEY);
+    
+    if (existingId) {
+      return existingId;
+    }
 
-  const newId = generateUUID();
-  storage.set(DEVICE_ID_KEY, newId);
-  return newId;
+    const newId = generateUUID();
+    await SecureStore.setItemAsync(DEVICE_ID_KEY, newId);
+    return newId;
+  } catch (error) {
+    // Fallback if SecureStore fails (e.g. web or no permission)
+    console.warn('SecureStore failed, using non-persistent ID', error);
+    return generateUUID();
+  }
 };

@@ -18,7 +18,7 @@ const REPORTS_COLLECTION = 'reports';
 export const addToiletToFirestore = async (
   toilet: Omit<Toilet, 'id' | 'geohash' | 'lastConfirmed' | 'reportCount'>
 ): Promise<string> => {
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
   
   const docRef = await addDoc(collection(db, TOILETS_COLLECTION), {
     coordinates: new GeoPoint(toilet.coordinates.latitude, toilet.coordinates.longitude),
@@ -41,7 +41,7 @@ export const reportToiletStatus = async (
   status: 'open' | 'closed',
   location: { latitude: number; longitude: number }
 ): Promise<string> => {
-  const deviceId = getDeviceId();
+  const deviceId = await getDeviceId();
 
   const docRef = await addDoc(collection(db, REPORTS_COLLECTION), {
     toiletId,

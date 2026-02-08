@@ -165,33 +165,39 @@ export default function MapScreen() {
       isAccessible: false, // Default
     };
 
+    const tempId = `temp-${Date.now()}`;
+    const newToilet: Toilet = {
+      id: tempId,
+      ...newToiletData,
+      geohash: 'pending',
+      lastConfirmed: new Date(),
+      reportCount: 1,
+    };
+
+    // 1. Optimistic Update (Immediate Feedback)
+    setToilets(prev => [...prev, newToilet]);
+
     if (process.env.EXPO_OS === 'ios') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
+    
+    Alert.alert(
+      'Bathroom Added',
+      'Thank you for contributing! This location is now visible locally.',
+      [{ text: 'OK' }]
+    );
 
     try {
-      // Add to Firestore
-      const id = await addToiletToFirestore(newToiletData);
+      // 2. Add to Firestore
+      const realId = await addToiletToFirestore(newToiletData);
 
-      // Add to local state immediately for feedback
-      const newToilet: Toilet = {
-        id,
-        ...newToiletData,
-        geohash: 'pending',
-        lastConfirmed: new Date(),
-        reportCount: 1,
-      };
-
-      setToilets(prev => [...prev, newToilet]);
-      
-      Alert.alert(
-        'Bathroom Added',
-        'Thank you for contributing! This location is now visible to others.',
-        [{ text: 'OK' }]
-      );
+      // 3. Update ID in state
+      setToilets(prev => prev.map(t => t.id === tempId ? { ...t, id: realId } : t));
     } catch (error) {
       console.error('Failed to add toilet:', error);
-      Alert.alert('Error', 'Could not save location. Please try again.');
+      // 4. Rollback
+      setToilets(prev => prev.filter(t => t.id !== tempId));
+      Alert.alert('Error', 'Could not save location to cloud. Reverting...');
     }
   };
 
@@ -265,6 +271,14 @@ export default function MapScreen() {
         <Ionicons name="locate" size={24} color={Colors.primary} />
       </Pressable>
 
+      {/* Home Button */}
+      <Pressable 
+        style={styles.homeButton}
+        onPress={() => router.replace('/')}
+      >
+        <Ionicons name="home" size={24} color={Colors.primary} />
+      </Pressable>
+
       {/* Floating Action Button */}
       <AnimatedPressable
         style={[styles.fab, fabAnimatedStyle]}
@@ -320,10 +334,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
     zIndex: 10,
-  },
-  locationIcon: {
-    width: 24,
-    height: 24,
   },
   fab: {
     position: 'absolute',
