@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Colors, Spacing, BorderRadius, TouchTarget } from '@/constants/colors';
 import { reportToiletStatus } from '@/lib/firestore';
+import { logEvent, Events } from '@/lib/analytics';
 
 type ReportStatus = 'open' | 'closed' | null;
 
@@ -83,6 +84,12 @@ export default function ReportScreen() {
       if (process.env.EXPO_OS === 'ios') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
+
+      logEvent(Events.REPORT_SUBMITTED, { 
+        toiletId, 
+        status: selectedStatus,
+        location: location.coords 
+      });
 
       Alert.alert(
         'Thanks!',

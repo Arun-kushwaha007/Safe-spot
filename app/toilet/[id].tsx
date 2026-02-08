@@ -94,6 +94,10 @@ export default function ToiletDetailScreen() {
     });
 
     if (scheme) {
+      logEvent(Events.ROUTE_STARTED, { 
+        toiletId: toilet.id, 
+        destination: toilet.coordinates 
+      });
       Linking.openURL(scheme);
     }
   };

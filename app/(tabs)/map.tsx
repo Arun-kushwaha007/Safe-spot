@@ -16,6 +16,7 @@ import type { Toilet, MapRegion } from '@/lib/types';
 import { fetchToilets } from '@/lib/overpass';
 import { addToiletToFirestore } from '@/lib/firestore';
 import { initDatabase, loadToiletsFromCache, saveToiletsToCache } from '@/lib/db';
+import { logEvent, Events } from '@/lib/analytics';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -220,6 +221,7 @@ export default function MapScreen() {
     // 1. Optimistic Update (Immediate Feedback)
     setToilets(prev => [...prev, newToilet]);
     saveToiletsToCache([newToilet]);
+    logEvent(Events.TOILET_ADDED, { location: newToilet.coordinates });
 
     if (process.env.EXPO_OS === 'ios') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -279,10 +281,12 @@ export default function MapScreen() {
               tracksViewChanges={false}
               opacity={visualStatus === 'unknown' ? 0.6 : 1} // Fade out stale pins
             >
-              <View style={[styles.pin, { backgroundColor: getPinColor(visualStatus) }]}>
-                <Text style={{ fontSize: 12 }}>
-                   {visualStatus === 'open' ? '🚽' : visualStatus === 'closed' ? '❌' : '?'}
-                </Text>
+              <View style={styles.pinContainer}>
+                <View style={[styles.pin, { backgroundColor: getPinColor(visualStatus) }]}>
+                  <Text style={{ fontSize: 12 }}>
+                     {visualStatus === 'open' ? '🚽' : visualStatus === 'closed' ? '❌' : '?'}
+                  </Text>
+                </View>
               </View>
             </Marker>
           );
@@ -354,6 +358,12 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     color: Colors.textMuted,
+  },
+  pinContainer: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   pin: {
     width: 30, // Smaller pin
